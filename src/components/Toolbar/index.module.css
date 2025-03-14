@@ -1,0 +1,40 @@
+.navbar {
+    /* border: 2px solid black; */
+    display:  flex;
+    flex-direction: row;
+    justify-content: center;
+}
+.container{
+    display: flex;
+    flex-direction:  row;
+    border: 2px solid blue;
+    padding: 8px 8px;
+    margin: 0.5vh 0vw;
+
+    box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+    border-radius: 4px;
+}
+.toolItem{
+    /* border: 2px solid red; */
+    padding: 0px 0.6vw;
+    margin: 0px 5px;
+    border-radius: 4px;
+    padding-top: 0.5vh;
+    font-size: 22px;
+}
+
+.toolItem:hover{
+    background-color: rgb(152, 215, 245);
+    cursor:pointer;
+}
+.active{
+    /* border: 2px solid red; */
+    padding: 0px 0.6vw;
+    margin: 0px 5px;
+    background-color: aqua;
+    border-radius: 4px;
+    padding-top: 0.5vh;
+    font-size: 22px;
+    height: 4.5vh;
+    
+}
