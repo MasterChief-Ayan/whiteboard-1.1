@@ -1,0 +1,536 @@
+WB part 14
+
+ISSUES RESOLVED
+
+-Text Erase 
+-Download Button
+-Color Picker(with null as fill color)
+
+INDEX OF TOOLBOX
+
+
+import React,{useContext} from 'react'
+import classes from "./index.module.css"
+import cx from "classnames"
+import { COLORS, FILL_TOOL_TYPES, SIZE_TOOL_TYPES, STROKE_TOOL_TYPES, TOOL_ITEMS } from '../../constants'
+import toolBoxContext from '../../store/toolbox-context'
+import boardContext from '../../store/board-context'
+
+function Toolbox() {
+
+    const {activeToolItem} = useContext(boardContext)
+    const {toolboxState,changeStrokeHandler,changeFillHandler,changeSizeHandler} = useContext(toolBoxContext)
+
+
+    const strokeColor= toolboxState[activeToolItem]?.stroke; // ? -> if it does not exist depending upon the active tool
+    const fillColor= toolboxState[activeToolItem]?.fill;
+    const size=toolboxState[activeToolItem]?.size; 
+
+    // COLOR PICKER : assiging to the current stroke color, thus when diff color selected, the picker color gets elected automatically
+
+  return (
+    <div className={classes.container}>
+        {STROKE_TOOL_TYPES.includes(activeToolItem) && <div className={classes.selectOptionContainer}>
+            <div className={classes.toolBoxLabel}>{activeToolItem===TOOL_ITEMS.TEXT?"Text Color":"Stroke Color"}</div>
+                <div className = {classes.colorsContainer}>
+                    <div>
+                        <input className={classes.colorPicker} type="color" value={strokeColor} onChange={(cur) => changeStrokeHandler(activeToolItem,cur.target.value)}></input>
+                    </div>
+                    {Object.keys(COLORS).map((idx)=> {
+                        return <div key={idx} className={cx(classes.colorBox,{[classes.activeColorBox]:strokeColor===COLORS[idx]})} 
+                        style={{backgroundColor:COLORS[idx]}}
+                        onClick = {() => changeStrokeHandler(activeToolItem,COLORS[idx])}
+                        ></div>
+                    })}
+                </div>
+                
+            
+        </div>}
+        {FILL_TOOL_TYPES.includes(activeToolItem) && <div className={classes.selectOptionContainer}>
+            <div className={classes.toolBoxLabel}>Fill Color</div>
+                <div className = {classes.colorsContainer}>
+                    {fillColor === null?
+                        <div className={cx(classes.colorPicker,classes.noFillColorBox)} onClick={( )=>changeFillHandler(activeToolItem,COLORS.BLACK)}></div>
+                    :
+                    <div>
+                        <input className={classes.colorPicker} type="color" value={fillColor} onChange={(cur) => changeFillHandler(activeToolItem,cur.target.value)}></input>
+                    </div>}
+                    <div className={cx(classes.colorBox,classes.noFillColorBox,{[classes.activeColorBox]:fillColor===null})} 
+                    onClick = {() => changeFillHandler(activeToolItem,null)}
+                    ></div>
+                    {Object.keys(COLORS).map((idx)=> {
+                        return <div key={idx} className={cx(classes.colorBox,{[classes.activeColorBox]:fillColor===COLORS[idx]})} 
+                        style={{backgroundColor:COLORS[idx]}}
+                        onClick = {() => changeFillHandler(activeToolItem,COLORS[idx])}
+                        ></div>
+                    })}
+                </div>
+            
+        </div>}
+        {SIZE_TOOL_TYPES.includes(activeToolItem) && <div className={classes.selectOptionContainer}>
+            <div className={classes.toolBoxLabel}>{activeToolItem===TOOL_ITEMS.TEXT?"Font Size":"Brush Size"}</div>
+                <input type="range" 
+                min = {activeToolItem === TOOL_ITEMS.TEXT?12:1}
+                max = {activeToolItem === TOOL_ITEMS.TEXT?64:10}
+                step={1} value={size} onChange={(event)=>changeSizeHandler(activeToolItem,event.target.value)}
+                >
+                </input>
+            
+        </div>}
+    </div>
+  )
+}
+    //Iterating through all the COLOR Object and printing it as an option in the toolBOX
+export default Toolbox
+
+
+ELEMENT MANAGER
+
+
+import {  TOOL_ITEMS } from "../constants";
+import rough from "roughjs/bin/rough"
+import getStroke from "perfect-freehand"
+import { arrowHead, isPointCloseToCircle, isPointCloseToLine } from "./MathHelper";
+
+const gen = rough.generator();
+
+function createElement(id,x1,y1,x2,y2,{type,stroke,fill,size}) {
+  const element ={id,x1,y1,x2,y2,type,fill,stroke,size};
+  // EACH element in the BOARD-PROVIDER is being saved as above format
+
+  let options ={
+    seed: id+1, // id must be +VE , avoid error in rough
+    fillStyle: "solid", // OTHERS : hachure(default), solid, zigzag, cross-hatch, dots, sunburst, dashed, or zigzag-line
+    
+}
+
+if (stroke) {
+  options.stroke = stroke;
+}
+if (fill){
+  options.fill = fill;
+}
+if (size){
+  options.strokeWidth = size;
+}
+
+  switch (type){
+      case TOOL_ITEMS.BRUSH:{
+        // Initially when the mouse is pressed down, just single point in SVG PATH
+        const brushElement={
+          id,
+          points:[{x:x1,y:y1}],
+          path: new Path2D(getSvgPathFromStroke(getStroke([{x:x1,y:y1}]))),
+          type,
+          stroke,
+        }
+        return brushElement;
+      }
+      case TOOL_ITEMS.LINE:{
+        element.roughEle = gen.line(x1,y1,x2,y2,options); //start_x,start_y,end_x,end_y
+        return element;
+      }
+      case TOOL_ITEMS.RECTANGLE:{
+        element.roughEle = gen.rectangle(x1,y1,x2-x1,y2-y1,options);//start_x,start_y,width,height
+        return element;
+      }
+      case TOOL_ITEMS.CIRCLE:{
+        element.roughEle = gen.ellipse((x1+x2)*0.5,(y1+y2)*0.5,x2-x1,y2-y1,options);// center_X,center_Y,width,height
+        return element;
+      }
+      case TOOL_ITEMS.ARROW:{
+        const {leftPoint,rightPoint} = arrowHead(x1,y1,x2,y2);
+
+        element.roughEle = gen.linearPath([[x1,y1],[x2,y2],leftPoint,[x2,y2],rightPoint,[x2,y2]]); // as its like drawing a arrow with pen without lifiting the pen tip, thus start, end, left,end, right, end (i again went to end at the last just to make sure the arrow density/thickness)
+        return element;
+      }
+      case (TOOL_ITEMS.TEXT):{
+        element.text=""
+        return element;
+      }
+      default:
+        return element;
+  }
+}
+
+export const isPointerNearElement = (element,clientX,clientY) => {
+  // ITS A PROXIMITY FUNCTION so we must define a range for the eraser point to be removed
+  //-larger eraser size, larger the proximity, latgert the range
+  const {x1,y1,x2,y2,fill} = element;
+  clientY-=5;// ERASER offset due to div
+  switch(element.type){
+    case (TOOL_ITEMS.BRUSH):{
+      const canvas = document.getElementById("canvas");   
+      const context = canvas.getContext("2d");      // just like we defined context using useRef tag in Board Index
+
+      return context.isPointInPath(element.path,clientX,clientY); // incuilt function
+    }
+    case (TOOL_ITEMS.LINE):{
+      return isPointCloseToLine(x1,y1,x2,y2,clientX,clientY);
+      
+    }
+    case (TOOL_ITEMS.RECTANGLE):{
+
+      //top OR right OR bottom OR left  OR INSIDE***  IMP
+      // console.log(stroke,"this");
+      return (isPointCloseToLine(x1,y1,x2,y1,clientX,clientY) || 
+              isPointCloseToLine(x2,y1,x2,y2,clientX,clientY) || 
+              isPointCloseToLine(x2,y2,x1,y2,clientX,clientY) || 
+              isPointCloseToLine(x1,y2,x1,y1,clientX,clientY) ||
+              (fill!==null && clientX<=Math.max(x1,x2) && clientX>=Math.min(x1,x2) && clientY<=Math.max(y1,y2) && clientY>=Math.min(y1,y2)));
+    }
+    case (TOOL_ITEMS.CIRCLE):{
+      return isPointCloseToCircle(x1,y1,x2,y2,clientX,clientY,fill);
+    }
+    case (TOOL_ITEMS.ARROW):{
+      const {leftPoint,rightPoint} = arrowHead(x1,y1,x2,y2);
+
+      // main arrow line OR left arrow edge OR right arrow edge
+      return (isPointCloseToLine(x1,y1,x2,y2,clientX,clientY) ||
+              isPointCloseToLine(x2,y2,leftPoint[0],leftPoint[1],clientX,clientY) ||
+              isPointCloseToLine(x2,y2,rightPoint[0],rightPoint[1],clientX,clientY));
+    }
+    case (TOOL_ITEMS.TEXT):{
+      const {size,text,stroke} = element;
+      const context = document.getElementById("canvas").getContext("2d");
+      context.font = `${size}px Caveat`;
+      context.fillStyle = stroke;
+      const textWidth = context.measureText(text).width;             // to get the width  of the text input-field
+      const textHeight = parseInt(size); //ParseInt-> always number  // to get the height of the text input-field
+      context.restore();
+
+      clientY+=50; // offset for the text eraser
+
+      return (
+        isPointCloseToLine(x1,y1,x1+textWidth,y1,clientX,clientY) ||
+        isPointCloseToLine(x1+textWidth,y1,x1+textWidth,y1+textHeight,clientX,clientY) ||
+        isPointCloseToLine(x1+textWidth,y1+textHeight,x1,y1+textHeight,clientX,clientY) ||
+        isPointCloseToLine(x1,y1+textHeight,x1,y1,clientX,clientY) 
+      )
+
+    }
+    default:{
+      throw new Error("Kaisa type Select kar rahe ho tum?");
+    }
+
+  }
+
+
+ 
+}
+
+export const getSvgPathFromStroke= (stroke)=> {
+  if (!stroke.length) return ''
+                  // acc -> accumulator
+  const d = stroke.reduce(
+    (acc, [x0, y0], i, arr) => {
+      const [x1, y1] = arr[(i + 1) % arr.length]
+      acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2)
+      return acc
+    },
+    ['M', ...stroke[0], 'Q']
+  )
+
+  d.push('Z')
+  return d.join(' ')
+}
+
+export default createElement
+
+
+INDEX OF TOOLBAR
+
+
+import React,{useContext} from 'react'
+import classes from "./index.module.css"
+import {  TOOL_ITEMS } from '../../constants';
+
+
+//images/icons
+import { HiPaintBrush } from "react-icons/hi2";
+import { LuRectangleHorizontal } from "react-icons/lu";
+import { FaSlash } from "react-icons/fa";
+import { FaRegCircle } from "react-icons/fa";
+import { FaArrowRightLong } from "react-icons/fa6";
+import { CiText } from "react-icons/ci";
+import { FaEraser } from "react-icons/fa";
+import { LuUndo2 } from "react-icons/lu";
+import { LuRedo2 } from "react-icons/lu";
+import { FaDownload } from "react-icons/fa6";
+import boardContext from '../../store/board-context';
+
+
+function Toolbar() {
+    const {activeToolItem,changeToolHandler,undo,redo,download} = useContext(boardContext);
+
+  return (<div className={classes.navbar}>
+    <div className={classes.container}>
+        <div className={(activeToolItem===TOOL_ITEMS.BRUSH?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.BRUSH)}><HiPaintBrush/></div>
+        <div className={(activeToolItem===TOOL_ITEMS.LINE?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.LINE)}><FaSlash/></div>
+        <div className={(activeToolItem===TOOL_ITEMS.RECTANGLE?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.RECTANGLE)}><LuRectangleHorizontal/></div>
+        <div className={(activeToolItem===TOOL_ITEMS.CIRCLE?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.CIRCLE)}><FaRegCircle/></div>
+        <div className={(activeToolItem===TOOL_ITEMS.ARROW?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.ARROW)}><FaArrowRightLong/></div>
+
+        <div className={(activeToolItem===TOOL_ITEMS.TEXT?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.TEXT)}><CiText/></div>
+        <div className={(activeToolItem===TOOL_ITEMS.ERASER?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.ERASER)}><FaEraser/></div>
+        <div className={(classes.toolItem)} onClick={()=>undo()}><LuUndo2/></div>
+        <div className={(classes.toolItem)} onClick={()=>redo()}><LuRedo2/></div>
+        <div className={(classes.toolItem)} onClick={()=>download()}><FaDownload/></div>
+    </div>
+
+    </div>
+  )
+}
+
+/**
+ *  <div className={(activeToolItem==8?classes.active:classes.toolItem )} onClick={()=>setActiveTool(8)}><LuUndo2/></div>
+    <div className={(activeToolItem==9?classes.active:classes.toolItem )} onClick={()=>setActiveTool(9)}><LuRedo2/></div>
+    <div className={(activeToolItem==10?classes.active:classes.toolItem )} onClick={()=>setActiveTool(10)}><FaDownload/></div>
+ * 
+ */
+
+export default Toolbar
+
+
+
+BOARDPROVIDER
+
+
+// CONCERNED WITH DRAWING but not concerned with what to draw
+
+import React,{useReducer} from 'react'
+import { isEqual } from "lodash";
+import boardContext from './board-context'
+import { BOARD_ACTIONS, TOOL_ACTION_TYPES, TOOL_ITEMS } from '../constants'
+// import rough from "roughjs/bin/rough"
+import createElement, { getSvgPathFromStroke, isPointerNearElement } from '../utilities/ElementManager';
+import getStroke from 'perfect-freehand';
+
+// const gen = rough.generator();// to generate all the relevent shapes as specified
+
+function  boardReducer (state,action) {
+    switch (action.type){
+        case BOARD_ACTIONS.CHANGE_TOOL:
+            return {...state,activeToolItem: action.payload.tool,};
+        case BOARD_ACTIONS.CHANGE_ACTION_TYPE:
+            return {...state,toolActionType:action.payload.actionType};
+
+        case BOARD_ACTIONS.DRAW_DOWN:{
+            const {clientX,clientY,stroke,fill,size} = action.payload;
+
+            const newElement = createElement(state.elements.length,clientX,clientY,clientX,clientY,{type:state.activeToolItem,stroke,fill,size});  // DONT USE BOARD_ACTIONS.DRAW_DOWN
+            return {...state, 
+                toolActionType:(state.activeToolItem===TOOL_ITEMS.TEXT?TOOL_ACTION_TYPES.WRITING:TOOL_ACTION_TYPES.DRAWING), 
+                elements:[...state.elements,newElement]} // prev state + prev elements+ NEW ELEMENTS
+        }
+            
+        case BOARD_ACTIONS.DRAW_MOVE:{
+            const {clientX,clientY,stroke,fill,size} = action.payload;
+
+            const pos=state.elements.length-1;
+            const newElements=[...state.elements];
+            const {x1,y1,type} = newElements[pos];
+            // newElements[pos].x2=clientX; // NOT NEEDED ANY MORE DUE TO ELEMENT MANAGER (NNAM)
+            // newElements[pos].y2=clientY; // (NNAM)
+            // // newElements[pos].roughEle= gen.line(newElements[pos].x1,newElements[pos].y1,newElements[pos].x2,newElements[pos].y2);  // WRONG as the REAL TIM position is from the clientX and clientY // (NNAM)
+            // newElements[pos].roughEle= gen.line(x1,y1,clientX,clientY);// (NNAM) 
+
+            switch(type){
+                case (TOOL_ITEMS.LINE):
+                case (TOOL_ITEMS.RECTANGLE):
+                case (TOOL_ITEMS.CIRCLE):
+                case (TOOL_ITEMS.ARROW):
+                    const newElement = createElement(pos,x1,y1,clientX,clientY,{type:state.activeToolItem,stroke,fill,size});
+                    newElements[pos]=newElement;
+                    break; 
+                case (TOOL_ITEMS.BRUSH):
+                    // INSERTING EACH POINT 
+                    newElements[pos].points=[...newElements[pos].points,{x:clientX,y:clientY}];
+                    newElements[pos].path = new Path2D(getSvgPathFromStroke(getStroke(newElements[pos].points)));
+                    //HERE when moving, ELEMENT MANAGER IS NOT CALLED
+                    break;
+
+                default:
+                    break;
+            }
+
+            return {...state,elements:newElements};
+        }
+        case BOARD_ACTIONS.DRAW_UP:{
+            const newHistory = state.history.slice(0,state.index+1);    // as new input is made, HISTORY beyond current is IRRELEVENT, thus we want from 0 till current index (i+1, is made as its exclusive)
+            const newElement = [...state.elements]
+
+            return {...state, toolActionType:TOOL_ACTION_TYPES.NONE,history:[...newHistory,newElement],index:state.index+1}
+        }
+        case BOARD_ACTIONS.ERASE:{
+            const {clientX,clientY} = action.payload;
+            let newElements = [...state.elements];      // assignment thus "let" and not "const"
+
+            //if Point is close to a element, then dont take it as its supposed to be deleted
+            newElements = newElements.filter((element) => {
+                return !isPointerNearElement(element,clientX,clientY);
+            })
+
+            if (isEqual(newElements, state.history[state.index])) return state;     // as the eraser moves each point it trvels index increases, so if the final state remains same we return the same state else INCREASE THE INDEX
+            const newHistory = state.history.slice(0,state.index+1);
+            return {...state,elements:newElements,history:[...newHistory,newElements],index:state.index+1}
+        }
+        case BOARD_ACTIONS.CHANGE_TEXT:{
+            const newHistory = [...state.history,state.elements];
+            const idx = state.elements.length-1;
+            const newElements = [...state.elements];
+            newElements[idx].text=action.payload.text;
+            return {...state,toolActionType:TOOL_ACTION_TYPES.NONE,elements:newElements,history:newHistory,index:state.index+1};
+        }
+        case BOARD_ACTIONS.UNDO:{
+            let {index}=state;
+            if(index===0) return state;
+            index-=1;
+            const newElements=[...state.history[index]];
+            return {...state,elements:newElements,index:index}
+        }
+        case BOARD_ACTIONS.REDO:{
+            let {index}=state;
+            if(index===state.history.length-1) return state;
+            index+=1;
+            const newElements=[...state.history[index]];
+            return {...state,elements:newElements,index:index}
+        }
+            
+        default:
+            return state;
+    }
+}
+
+const initialBoardState = {
+    activeToolItem: TOOL_ITEMS.BRUSH,
+    toolActionType: TOOL_ACTION_TYPES.NONE, // to know what action is going on now
+    elements:[],
+    history:[[]],
+    index:0,
+}
+
+function BoardProvider({children}) {
+
+
+    const [boardState,dispatchBoardAction] = useReducer(boardReducer,initialBoardState);
+    function changeToolHandler(tool){
+        dispatchBoardAction({type:BOARD_ACTIONS.CHANGE_TOOL, payload:{tool}})
+    }
+
+    function boardMouseDownHandler (event,toolboxState) {
+        const {clientX,clientY} = event;
+
+        if(boardState.toolActionType === TOOL_ACTION_TYPES.WRITING) return; // if done writing and now clicking again somewhere else, thus saving it in board
+        
+        else if(boardState.activeToolItem === TOOL_ITEMS.ERASER){
+            // informing to make the active action type as erasing
+            dispatchBoardAction({
+                type: BOARD_ACTIONS.CHANGE_ACTION_TYPE,
+                payload:{actionType:TOOL_ACTION_TYPES.ERASING}
+            })
+            
+        }
+        // else if(boardState.activeToolItem === TOOL_ITEMS.TEXT){
+        //     dispatchBoardAction({
+        //         type:BOARD_ACTIONS.CHANGE_ACTION_TYPE,
+        //         payload:{actionType:TOOL_ACTION_TYPES.WRITING}
+        //     })
+        // }
+        else if(boardState.activeToolItem !== TOOL_ITEMS.NONE){
+            dispatchBoardAction({type: BOARD_ACTIONS.DRAW_DOWN,
+                payload: { 
+                    clientX,
+                    clientY,
+                    stroke: toolboxState[boardState.activeToolItem]?.stroke,
+                    fill: toolboxState[boardState.activeToolItem]?.fill,
+                    size: toolboxState[boardState.activeToolItem]?.size,
+                }});
+        }
+        
+    }
+    function boardMouseMoveHandler (event,toolboxState) {
+        
+
+        const {clientX,clientY} = event;
+
+        if(boardState.toolActionType === TOOL_ACTION_TYPES.WRITING)  return; // obv dont want to do anything while moving and simultaneously writing
+
+        else if(boardState.toolActionType === TOOL_ACTION_TYPES.DRAWING){
+            dispatchBoardAction({type: BOARD_ACTIONS.DRAW_MOVE,
+                payload: { 
+                    clientX,
+                    clientY,
+                    stroke: toolboxState[boardState.activeToolItem]?.stroke,
+                    fill: toolboxState[boardState.activeToolItem]?.fill,
+                    size: toolboxState[boardState.activeToolItem]?.size,
+                }});
+        }
+        else if(boardState.toolActionType === TOOL_ACTION_TYPES.ERASING){    // to identify the pos of erasor when mosue is down and moving
+            dispatchBoardAction({type: BOARD_ACTIONS.ERASE,
+                payload: { 
+                    clientX,
+                    clientY,
+                }});
+        }
+        
+    }
+    function boardMouseUpHandler () {
+        if(boardState.toolActionType === TOOL_ACTION_TYPES.WRITING) return; // obv no need of any thing here
+
+        if(boardState.toolActionType === TOOL_ACTION_TYPES.DRAWING){
+            dispatchBoardAction({ type: BOARD_ACTIONS.DRAW_UP })
+        }
+
+        dispatchBoardAction({type: BOARD_ACTIONS.CHANGE_ACTION_TYPE, payload:{actionType:TOOL_ACTION_TYPES.NONE}}); // CHanging the Status of action to NONE
+    }
+    function textAreaBlurHandler (text,toolboxState) {
+        //setting the text once the writing is done in canvas in onBlur attribute
+        dispatchBoardAction({type:BOARD_ACTIONS.CHANGE_TEXT,payload:{
+            text,
+            stroke:toolboxState[boardState.activeToolItem]?.stroke,
+            size:toolboxState[boardState.activeToolItem]?.size
+        }});
+    }
+    function boardUndoHandler () {
+        dispatchBoardAction({type:BOARD_ACTIONS.UNDO});
+    }
+
+    function boardRedoHandler () {
+        dispatchBoardAction({type:BOARD_ACTIONS.REDO});
+    }
+    function handleDownloadClick() {
+        const canvas = document.getElementById("canvas");
+        const data = canvas.toDataURL("image/png"); //data of the canvas
+        const anchor = document.createElement("a");    //to refere data and download upon click
+        anchor.href=data;
+        anchor.download="Sketch.png";
+        anchor.click();
+    }
+    
+
+    const boardValues={
+        activeToolItem: boardState.activeToolItem,
+        elements:boardState.elements,
+        toolActionType:boardState.toolActionType,
+        changeToolHandler,
+        boardMouseDownHandler,
+        boardMouseMoveHandler,
+        boardMouseUpHandler,
+        textAreaBlurHandler,
+        undo:boardUndoHandler,
+        redo:boardRedoHandler,
+        download:handleDownloadClick,
+    }
+
+    
+  return (
+    <boardContext.Provider value = {boardValues}>
+        {children}
+    </boardContext.Provider>
+  )
+}
+
+export default BoardProvider
+
+

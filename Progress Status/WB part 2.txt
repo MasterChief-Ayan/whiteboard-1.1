@@ -1,0 +1,103 @@
+WB part 2
+
+1.
+FOR ICONS we did 
+
+- npm i classnames react-icons
+
+- In React-icons, download the ones u like
+
+
+
+------------------------------------------------------------------
+
+This is for me, STUPID, In onClick(),    use () => funcName() instead of funcName() 
+
+------------------------------------------------------------------
+
+
+2.
+toolbox/toolbar   + index.module.css + tailwindcss
+
+import React,{useState} from 'react'
+import classes from "./index.module.css"
+
+//images/icons
+import { HiPaintBrush } from "react-icons/hi2";
+import { LuRectangleHorizontal } from "react-icons/lu";
+import { FaSlash } from "react-icons/fa";
+import { FaRegCircle } from "react-icons/fa";
+import { FaArrowRightLong } from "react-icons/fa6";
+import { CiText } from "react-icons/ci";
+import { FaEraser } from "react-icons/fa";
+import { LuUndo2 } from "react-icons/lu";
+import { LuRedo2 } from "react-icons/lu";
+import { FaDownload } from "react-icons/fa6";
+
+function Toolbar() {
+    const [activeTool,setActiveTool] = useState('A');
+
+  return (<div className={classes.navbar}>
+    <div className={classes.container}>
+        <div className={(activeTool=='A'?classes.active:classes.toolItem )} onClick={()=>setActiveTool('A')}><HiPaintBrush/></div>
+        <div className={(activeTool=='B'?classes.active:classes.toolItem )} onClick={()=>setActiveTool('B')}><FaSlash/></div>
+        <div className={(activeTool=='C'?classes.active:classes.toolItem )} onClick={()=>setActiveTool('C')}><LuRectangleHorizontal/></div>
+        <div className={(activeTool=='D'?classes.active:classes.toolItem )} onClick={()=>setActiveTool('D')}><FaRegCircle/></div>
+        <div className={(activeTool=='E'?classes.active:classes.toolItem )} onClick={()=>setActiveTool('E')}><FaArrowRightLong/></div>
+
+        <div className={(activeTool=='F'?classes.active:classes.toolItem )} onClick={()=>setActiveTool('F')}><CiText/></div>
+        <div className={(activeTool=='G'?classes.active:classes.toolItem )} onClick={()=>setActiveTool('G')}><FaEraser/></div>
+        <div className={(activeTool=='H'?classes.active:classes.toolItem )} onClick={()=>setActiveTool('H')}><LuUndo2/></div>
+        <div className={(activeTool=='I'?classes.active:classes.toolItem )} onClick={()=>setActiveTool('I')}><LuRedo2/></div>
+        <div className={(activeTool=='J'?classes.active:classes.toolItem )} onClick={()=>setActiveTool('J')}><FaDownload/></div>
+    </div>
+
+    </div>
+  )
+}
+
+export default Toolbar
+
+
+my css
+
+.navbar {
+    border: 2px solid black;
+    display:  flex;
+    flex-direction: row;
+    justify-content: center;
+}
+.container{
+    display: flex;
+    flex-direction:  row;
+    border: 2px solid blue;
+    padding: 8px 8px;
+    margin: 0.5vh 0vw;
+
+    box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+    border-radius: 4px;
+}
+.toolItem{
+    /* border: 2px solid red; */
+    padding: 0px 0.6vw;
+    margin: 0px 5px;
+    border-radius: 4px;
+    padding-top: 0.5vh;
+    font-size: 22px;
+}
+
+.toolItem:hover{
+    background-color: rgb(152, 215, 245);
+    cursor:pointer;
+}
+.active{
+    border: 2px solid red;
+    padding: 0px 0.6vw;
+    margin: 0px 5px;
+    background-color: aqua;
+    border-radius: 4px;
+    padding-top: 0.5vh;
+    font-size: 22px;
+    height: 5vh;
+    
+}

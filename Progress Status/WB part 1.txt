@@ -1,0 +1,54 @@
+WB part 1
+
+BOARD
+
+import React,{useRef,useEffect} from 'react' 
+import "./index.css"
+import rough from "roughjs"
+
+function Board() {
+    const canvasRef = useRef();
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        canvas.height = window.innerHeight; // entire vw
+        canvas.width = window.innerWidth;   // entire vh
+
+        const roughCanvas = rough.canvas(canvas); // canvas <---> getelementbyid
+        const generator = roughCanvas.generator;  // Generator -> easy draw in canvas
+        let rect1 = generator.rectangle(10, 10, 100, 100);  // (x.start,y.start,length,height)
+        let rect2 = generator.rectangle(10, 120, 100, 100, {fill: 'black',stroke:'red'});
+        roughCanvas.draw(rect1);
+        roughCanvas.draw(rect2);
+/*
+        By default it takes the available size in the parent Div
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#FF0000"; // or even like "blue"
+        context.fillRect(0,0,150,150);  // (x.start,y.start,length,height)
+*/
+        
+    }, []);
+
+  return (
+    <div>
+        <h1>My WhiteBoard App</h1>
+        <canvas ref={canvasRef} className="canvas"></canvas>
+    </div>
+  )
+}
+
+export default Board;
+
+
+
+APP
+
+import Board from "./components/Board"
+
+function App() {
+  return (
+    <Board/>
+  );
+}
+
+export default App;

@@ -1,0 +1,53 @@
+WB part 5
+
+TIPS:
+
+##BETTER hook for useEffect -> useLayoutEffect
+
+- almost same as useEffect
+-perform AFTER DOM update and before Screen Update
+   unlike useEffect which has renders after screen effect -> causing visible flickering!
+
+THUS 
+
+- FETCHING, Setting up SUbscription,    ---> use useEffect
+- Fast Rendering / Responsive rendering ---> use useLayoutEffect
+
+
+---------------------------------------------------------------------------------------
+
+ADD CIRCLE
+
+import { BOARD_ACTIONS, TOOL_ITEMS } from "../constants";
+import rough from "roughjs/bin/rough"
+
+const gen = rough.generator();
+
+function createRoughElement(id,x1,y1,x2,y2,type) {
+  const element ={id,x1,y1,x2,y2};
+
+  let options ={
+    seed: id+1, // id must be +VE , avoid error in rough
+    
+}
+
+  switch (type){
+      case TOOL_ITEMS.LINE:{
+        element.roughEle = gen.line(x1,y1,x2,y2,options); //start_x,start_y,end_x,end_y
+        return element;
+      }
+      case TOOL_ITEMS.RECTANGLE:{
+        element.roughEle = gen.rectangle(x1,y1,x2-x1,y2-y1,options);//start_x,start_y,width,height
+        return element;
+      }
+      case TOOL_ITEMS.CIRCLE:{
+        element.roughEle = gen.ellipse((x1+x2)*0.5,(y1+y2)*0.5,x2-x1,y2-y1,options);// center_X,center_Y,width,height
+        return element;
+      }
+      
+      default:
+        return element;
+  }
+}
+
+export default createRoughElement

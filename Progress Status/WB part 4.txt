@@ -1,0 +1,235 @@
+WB part 4
+
+TIPs:
+
+1) say state=> {a: ...,b:...,c:...,.....}
+
+TO modify b and c in state OR just b, we can do is return {...state,b',c'} or {...state,b'} resp
+
+
+2)  state as {a:[x1:...,x2:...,.....],b:...,c:....,....}
+
+then to modify state x2
+
+MUST DO THESE
+
+newA=[...state.a];	 // MUST use Destructuring & must set as (...<>,single entity)
+newA[idx]=somethng							^ABOVE^**************IMP
+return {...state,a:newA};							 /\
+										 ||	
+AND NOT DO THIS                                                                  ||
+										 ||
+newA=state.a;									 ||
+newA[idx]=somethng                                                               ||
+return {...state,a:newA};                                                        ||
+										 ||
+										 ||
+NOTE: Double desturcturing , iff u want to STORE the latest element, and if u want to update it then update it as a single entity                    <--------------- V.IMP
+
+
+--------------------------------------------------------------------------------------
+
+TO MANAGE ACTIVE SHAPE TYPE (in ElementManager)
+
+import { TOOL_ITEMS } from "../constants";
+import rough from "roughjs/bin/rough"
+
+const gen = rough.generator();
+
+function createRoughElement(id,x1,y1,x2,y2,type) {
+  const element ={id,x1,y1,x2,y2};
+
+  let options ={
+    seed: id+1, // id must be +VE , avoid error in rough
+    
+}
+
+  switch (type){
+      case TOOL_ITEMS.LINE:{
+        element.roughEle = gen.line(x1,y1,x2,y2,options);
+        return element;
+      }
+      case TOOL_ITEMS.RECTANGLE:{
+        element.roughEle = gen.rectangle(x1,y1,x2-x1,y2-y1,options);
+        return element;
+      }
+      default:
+        return element;
+  }
+}
+
+export default createRoughElement
+
+
+BoardProvider.js
+
+import React,{useState,useReducer} from 'react'
+import boardContext from './board-context'
+import { BOARD_ACTIONS, TOOL_ACTION_TYPES, TOOL_ITEMS } from '../constants'
+import rough from "roughjs/bin/rough"
+import createRoughElement from '../utilities/ElementManager';
+
+const gen = rough.generator();// to generate all the relevent shapes as specified
+
+function  boardReducer (state,action) {
+    switch (action.type){
+        case BOARD_ACTIONS.CHANGE_TOOL:
+            return {...state,activeToolItem: action.payload.tool,};
+
+        case BOARD_ACTIONS.DRAW_DOWN:{
+            const {clientX,clientY} = action.payload;
+
+            const newElement = createRoughElement(state.elements.length,clientX,clientY,clientX,clientY,state.activeToolItem);  // DONT USE BOARD_ACTIONS.DRAW_DOWN
+            return {...state, toolActionType:TOOL_ACTION_TYPES.DRAWING, elements:[...state.elements,newElement]} // prev state + prev elements+ NEW ELEMENTS
+        }
+            
+        case BOARD_ACTIONS.DRAW_MOVE:{
+            const {clientX,clientY} = action.payload;
+
+            const pos=state.elements.length-1;
+            const newElements=[...state.elements];
+            const {id,x1,y1,x2,y2} = newElements[pos];
+            // newElements[pos].x2=clientX; // NOT NEEDED ANY MORE DUE TO ELEMENT MANAGER (NNAM)
+            // newElements[pos].y2=clientY; // (NNAM)
+            // // newElements[pos].roughEle= gen.line(newElements[pos].x1,newElements[pos].y1,newElements[pos].x2,newElements[pos].y2);  // WRONG as the REAL TIM position is from the clientX and clientY // (NNAM)
+            // newElements[pos].roughEle= gen.line(x1,y1,clientX,clientY);// (NNAM)
+
+            const newElement = createRoughElement(pos,x1,y1,clientX,clientY,state.activeToolItem);
+            newElements[pos]=newElement;  
+            return {...state,elements:newElements};
+        }
+        case BOARD_ACTIONS.DRAW_UP:{
+            return {...state, toolActionType:TOOL_ACTION_TYPES.NONE}
+        }
+            
+        default:
+            return state;
+    }
+}
+
+const initialBoardState = {
+    activeToolItem: TOOL_ITEMS.LINE,
+    toolActionType: TOOL_ACTION_TYPES.NONE, // to know what action is going on now
+    elements:[]
+}
+
+function BoardProvider({children}) {
+
+
+    const [boardState,dispatchBoardAction] = useReducer(boardReducer,initialBoardState);
+    function changeToolHandler(tool){
+        dispatchBoardAction({type:"CHANGE_TOOL", payload:{tool}})
+    }
+
+    function boardMouseDownHandler (event) {
+        const {clientX,clientY} = event;
+        dispatchBoardAction({type: "DRAW_DOWN",payload: { clientX,clientY}});
+    }
+    function boardMouseMoveHandler (event) {
+        const {clientX,clientY} = event;
+        dispatchBoardAction({type: "DRAW_MOVE",payload: { clientX,clientY}});
+    }
+    function boardMouseUpHandler () {
+        dispatchBoardAction({type: "DRAW_UP"}); // Just need to remove the STATUS of Action type
+    }
+
+    const boardValues={
+        activeToolItem: boardState.activeToolItem,
+        elements:boardState.elements,
+        toolActionType:boardState.toolActionType,
+        changeToolHandler,
+        boardMouseDownHandler,
+        boardMouseMoveHandler,
+        boardMouseUpHandler,
+    }
+
+    
+  return (
+    <boardContext.Provider value = {boardValues}>
+        {children}
+    </boardContext.Provider>
+  )
+}
+
+export default BoardProvider
+
+
+index.js in Board
+
+import React,{useRef,useEffect,useContext} from 'react' 
+import "./index.module.css"
+import rough from "roughjs"
+import boardContext from '../../store/board-context';
+import { TOOL_ACTION_TYPES, TOOLBOX_ACTIONS } from '../../constants';
+
+function Board() {
+    const canvasRef = useRef();
+    const {elements,boardMouseDownHandler,boardMouseMoveHandler,boardMouseUpHandler,toolActionType} = useContext(boardContext) //Keep on importing each func from context
+
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      canvas.height = window.innerHeight; // entire vw
+      canvas.width = window.innerWidth;   // entire vh
+    }, []);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const context = canvas.getContext("2d");
+        const roughCanvas = rough.canvas(canvas); // canvas <---> getelementbyid
+        const generator = roughCanvas.generator;  // Generator -> easy draw in canvas
+
+        elements.forEach((element) => {
+          roughCanvas.draw(element.roughEle)  // drawing all the existing elements
+        })
+
+        // WHEN ELEMENTS CHANGE, We want THE BOARD RE-RENDERS
+
+        return () => {
+          context.clearRect(0,0,canvas.width,canvas.height); // TO clr RECTANGLE(aka White Board)
+        }
+
+
+        // let rect1 = generator.rectangle(10, 10, 100, 100);  // (x.start,y.start,length,height)
+        // let rect2 = generator.rectangle(10, 120, 100, 100, {fill: 'black',stroke:'red'});
+        // roughCanvas.draw(rect1);
+        // roughCanvas.draw(rect2);
+/*
+        By default it takes the available size in the parent Div
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#FF0000"; // or even like "blue"
+        context.fillRect(0,0,150,150);  // (x.start,y.start,length,height)
+*/
+        
+    }, [elements]);
+
+    function handleMouseDown (event) {
+      // const clientX = event.clientX;       // X-Pos of MOUSE-CLICK
+      // const clientY = event.clientY-59;    // Y-Pos of MOUSE-CLICK
+      event.clientY-=63;          // OFF-SET Y-PIXEL due to NAVBAR at the top
+      boardMouseDownHandler(event); 
+    }
+
+    function handleMouseMove(event){
+      event.clientY-=63; // OFF-SET Y-PIXEL due to NAVBAR at the top
+      if(toolActionType == TOOL_ACTION_TYPES.DRAWING)boardMouseMoveHandler(event);   //needs the coordinates as user, is holding and moving the cursor
+    }
+
+    function handleMouseUp () {
+      boardMouseUpHandler(); // No need of event as just o set the toolActionType===NONE
+    }
+
+
+  return (
+    <div>
+        <canvas ref={canvasRef} className="canvas" onMouseDown ={handleMouseDown}
+        onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}></canvas>
+    </div>
+  )
+}
+
+export default Board;
+
+
+
+
+

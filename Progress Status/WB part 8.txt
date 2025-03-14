@@ -1,0 +1,72 @@
+WB part 8
+
+IMP
+
+1)
+<array>.includes(<toFind/Say_A_KEY>)   ---> gives 1/0
+
+2) 
+
+INPUT , type= "range" (NICE SLIDER PROPERTY)
+
+
+
+SIMPLE
+
+
+
+import React,{useContext} from 'react'
+import classes from "./index.module.css"
+import cx from "classnames"
+import { COLORS, FILL_TOOL_TYPES, SIZE_TOOL_TYPES, STROKE_TOOL_TYPES, TOOL_ITEMS } from '../../constants'
+import toolBoxContext from '../../store/toolbox-context'
+import boardContext from '../../store/board-context'
+
+function Toolbox() {
+
+    const {activeToolItem} = useContext(boardContext)
+    const {toolboxState,changeStrokeHandler,changeFillHandler,changeSizeHandler} = useContext(toolBoxContext)
+
+
+    const strokeColor= toolboxState[activeToolItem]?.stroke; // ? -> if it does not exist depending upon the active tool
+    const fillColor= toolboxState[activeToolItem]?.fill;
+    const size=toolboxState[activeToolItem]?.size; 
+  return (
+    <div className={classes.container}>
+        {STROKE_TOOL_TYPES.includes(activeToolItem) && <div className={classes.selectOptionContainer}>
+            <div className={classes.toolBoxLabel}>Stroke Color</div>
+                {Object.keys(COLORS).map((idx)=> {
+                    return <div key={idx} className={cx(classes.colorBox,{[classes.activeColorBox]:strokeColor===COLORS[idx]})} 
+                    style={{backgroundColor:COLORS[idx]}}
+                    onClick = {() => changeStrokeHandler(activeToolItem,COLORS[idx])}
+                    ></div>
+                })
+                }
+            
+        </div>}
+        {FILL_TOOL_TYPES.includes(activeToolItem) && <div className={classes.selectOptionContainer}>
+            <div className={classes.toolBoxLabel}>Fill Color</div>
+                {Object.keys(COLORS).map((idx)=> {
+                    return <div key={idx} className={cx(classes.colorBox,{[classes.activeColorBox]:fillColor===COLORS[idx]})} 
+                    style={{backgroundColor:COLORS[idx]}}
+                    onClick = {() => changeFillHandler(activeToolItem,COLORS[idx])}
+                    ></div>
+                })
+                }
+            
+        </div>}
+        {SIZE_TOOL_TYPES.includes(activeToolItem) && <div className={classes.selectOptionContainer}>
+            <div className={classes.toolBoxLabel}>Brush Size</div>
+                <input type="range" 
+                min = {1}
+                max = {10}
+                step={1} value={size} onChange={(event)=>changeSizeHandler(activeToolItem,event.target.value)}
+                >
+                </input>
+            
+        </div>}
+    </div>
+  )
+}
+    //Iterating through all the COLOR Object and printing it as an option in the toolBOX
+export default Toolbox

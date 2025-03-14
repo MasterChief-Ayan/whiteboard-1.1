@@ -1,0 +1,60 @@
+WB part 6
+
+Arrow
+
+- Just Derive the arrow as stated in the png as 
+C:\Users\ayana\Downloads\ARROW_DERIVATION.png
+
+Basically trying to generalize it
+
+-----------------------------------------------------------------------------
+
+import { BOARD_ACTIONS, TOOL_ITEMS } from "../constants";
+import rough from "roughjs/bin/rough"
+
+const gen = rough.generator();
+
+function createRoughElement(id,x1,y1,x2,y2,type) {
+  const element ={id,x1,y1,x2,y2};
+
+  let options ={
+    seed: id+1, // id must be +VE , avoid error in rough
+    
+}
+
+  switch (type){
+      case TOOL_ITEMS.LINE:{
+        element.roughEle = gen.line(x1,y1,x2,y2,options); //start_x,start_y,end_x,end_y
+        return element;
+      }
+      case TOOL_ITEMS.RECTANGLE:{
+        element.roughEle = gen.rectangle(x1,y1,x2-x1,y2-y1,options);//start_x,start_y,width,height
+        return element;
+      }
+      case TOOL_ITEMS.CIRCLE:{
+        element.roughEle = gen.ellipse((x1+x2)*0.5,(y1+y2)*0.5,x2-x1,y2-y1,options);// center_X,center_Y,width,height
+        return element;
+      }
+      case TOOL_ITEMS.ARROW:{
+        const theta = Math.atan2(y2-y1,x2-x1);
+        const phi = (20) * (Math.PI/180);
+        const len = 20;
+
+        const alpha = (Math.PI/2)-theta-phi;
+        const beta = theta-phi;
+
+        const leftPoint = [x2-(len*Math.cos(beta)),y2-(len*Math.sin(beta))];
+        const rightPoint = [x2-(len*Math.sin(alpha)),y2-(len*Math.cos(alpha))];
+
+        // SEE the ARROW_DERIVATION.PNG for VARIABLE NAMING
+
+        element.roughEle = gen.linearPath([[x1,y1],[x2,y2],leftPoint,[x2,y2],rightPoint,[x2,y2]]); // as its like drawing a arrow with pen without lifiting the pen tip, thus start, end, left,end, right, end (i again went to end at the last just to make sure the arrow density/thickness)
+        return element;
+      }
+      default:
+        return element;
+  }
+}
+
+export default createRoughElement
+

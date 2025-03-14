@@ -1,0 +1,203 @@
+WB part 3
+
+TIP OF THE DAY:
+
+
+(i)
+Use { ...state, activeToolItem: action.payload.tool } to preserve all state properties while updating activeToolItem. ✅
+--------->AS ORDER DOES NOT MATTER IN JS  & existing will updated<----------   IMP
+
+
+(ii)
+payload access as 
+- action.payload.a
+
+when defined as  payload:{a}
+
+---------------------------------------------------------------------------
+
+
+ 
+BOARD PROVIDER
+
+import React,{useState,useReducer} from 'react'
+import boardContext from './board-context'
+import { TOOL_ITEMS } from '../constants'
+import rough from "roughjs/bin/rough"
+
+const gen = rough.generator();
+
+function  boardReducer (state,action) {
+    switch (action.type){
+        case "CHANGE_TOOL":
+            return {...state,activeToolItem: action.payload.tool,};
+        case "DRAW_DOWN":
+            const {clientX,clientY} = action.payload;
+
+            const newElement= {
+                id:state.elements.length,
+                x1:clientX,
+                y1:clientY,
+                x2:clientX,
+                y2:clientY,
+                roughEle: gen.line(clientX,clientY,clientX,clientY),    // Creates line with specified start and end
+                
+            }
+            const prevElements = state.elements;
+            return {...state,elements:[...state.elements,newElement]}       // prev state + prev elements+ NEW ELEMENTS
+        default:
+            return state;
+    }
+}
+
+const initialBoardState = {
+    activeToolItem: TOOL_ITEMS.LINE,
+    elements:[]
+}
+
+function BoardProvider({children}) {
+
+
+    const [boardState,dispatchBoardAction] = useReducer(boardReducer,initialBoardState);
+    function setActiveToolItem(tool){
+        dispatchBoardAction({type:"CHANGE_TOOL", payload:{tool}})
+    }
+
+    function boardMouseDownHandler (event) {
+        const {clientX,clientY} = event;
+        dispatchBoardAction({type: "DRAW_DOWN",payload: { clientX,clientY}});
+    }
+
+    const boardValues={
+        activeToolItem: boardState.activeToolItem,
+        elements:boardState.elements,
+        setActiveToolItem,
+        boardMouseDownHandler,
+    }
+
+    
+  return (
+    <boardContext.Provider value = {boardValues}>
+        {children}
+    </boardContext.Provider>
+  )
+}
+
+export default BoardProvider
+
+
+Index.js for Board
+
+import React,{useRef,useEffect,useContext} from 'react' 
+import "./index.module.css"
+import rough from "roughjs"
+import boardContext from '../../store/board-context';
+
+function Board() {
+    const canvasRef = useRef();
+    const {elements,boardMouseDownHandler} = useContext(boardContext)
+
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      canvas.height = window.innerHeight; // entire vw
+      canvas.width = window.innerWidth;   // entire vh
+    }, []);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const context = canvas.getContext("2d");
+        const roughCanvas = rough.canvas(canvas); // canvas <---> getelementbyid
+        const generator = roughCanvas.generator;  // Generator -> easy draw in canvas
+
+        elements.forEach((element) => {
+          roughCanvas.draw(element.roughEle)  // drawing all the existing elements
+        })
+
+        // WHEN ELEMENTS CHANGE, We want THE BOARD RE-RENDERS
+
+        return () => {
+          context.clearRect(0,0,canvas.width,canvas.height); // TO clr RECTANGLE(aka White Board)
+        }
+
+
+        // let rect1 = generator.rectangle(10, 10, 100, 100);  // (x.start,y.start,length,height)
+        // let rect2 = generator.rectangle(10, 120, 100, 100, {fill: 'black',stroke:'red'});
+        // roughCanvas.draw(rect1);
+        // roughCanvas.draw(rect2);
+/*
+        By default it takes the available size in the parent Div
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#FF0000"; // or even like "blue"
+        context.fillRect(0,0,150,150);  // (x.start,y.start,length,height)
+*/
+        
+    }, [elements]);
+
+    function handleBoardMouseDown (event) {
+      const clientX = event.clientX;    // X-Pos of MOUSE-CLICK
+      const clientY = event.clientY;    // Y-Pos of MOUSE-CLICK
+      boardMouseDownHandler(event);
+      
+    }
+
+  return (
+    <div>
+        <h1 className="text-3xl font-bold pb-3">My WhiteBoard App </h1>
+        <canvas ref={canvasRef} className="canvas" onMouseDown ={handleBoardMouseDown}></canvas>
+    </div>
+  )
+}
+
+export default Board;
+
+index.js @ TOOLBOX
+
+import React,{useState,useContext} from 'react'
+import classes from "./index.module.css"
+import { TOOL_ITEMS } from '../../constants';
+
+
+//images/icons
+import { HiPaintBrush } from "react-icons/hi2";
+import { LuRectangleHorizontal } from "react-icons/lu";
+import { FaSlash } from "react-icons/fa";
+import { FaRegCircle } from "react-icons/fa";
+import { FaArrowRightLong } from "react-icons/fa6";
+import { CiText } from "react-icons/ci";
+import { FaEraser } from "react-icons/fa";
+import { LuUndo2 } from "react-icons/lu";
+import { LuRedo2 } from "react-icons/lu";
+import { FaDownload } from "react-icons/fa6";
+import boardContext from '../../store/board-context';
+
+
+function Toolbar() {
+    const {activeToolItem,changeToolHandler} = useContext(boardContext);
+
+  return (<div className={classes.navbar}>
+    <div className={classes.container}>
+        <div className={(activeToolItem===TOOL_ITEMS.BRUSH?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.BRUSH)}><HiPaintBrush/></div>
+        <div className={(activeToolItem===TOOL_ITEMS.LINE?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.LINE)}><FaSlash/></div>
+        <div className={(activeToolItem===TOOL_ITEMS.RECTANGLE?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.RECTANGLE)}><LuRectangleHorizontal/></div>
+        <div className={(activeToolItem===TOOL_ITEMS.CIRCLE?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.CIRCLE)}><FaRegCircle/></div>
+        <div className={(activeToolItem===TOOL_ITEMS.ARROW?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.ARROW)}><FaArrowRightLong/></div>
+
+        <div className={(activeToolItem===TOOL_ITEMS.TEXT?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.TEXT)}><CiText/></div>
+        <div className={(activeToolItem===TOOL_ITEMS.ERASER?classes.active:classes.toolItem )} onClick={()=>changeToolHandler(TOOL_ITEMS.ERASER)}><FaEraser/></div>
+        
+    </div>
+
+    </div>
+  )
+}
+
+/**
+ *  <div className={(activeToolItem==8?classes.active:classes.toolItem )} onClick={()=>setActiveTool(8)}><LuUndo2/></div>
+    <div className={(activeToolItem==9?classes.active:classes.toolItem )} onClick={()=>setActiveTool(9)}><LuRedo2/></div>
+    <div className={(activeToolItem==10?classes.active:classes.toolItem )} onClick={()=>setActiveTool(10)}><FaDownload/></div>
+ * 
+ */
+
+export default Toolbar
+
+

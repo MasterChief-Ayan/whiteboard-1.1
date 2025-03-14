@@ -1,0 +1,565 @@
+WB part 12
+
+
+TIPS:
+
+Its a good practice to send the main componenet or the majore chunk first and then dereference it by checking in the intake function
+
+Eg of dereferencing via checking as well 
+
+--> size:toolboxState[boardState.activeToolItem]?.size
+
+
+THINGS DONE HERE:
+
+-introduction of writing as actiontype
+		change text as boardaction
+
+-textarea TAG
+-separate useEffect for ext area
+-few changes in the tool box depending upon the active tool item
+-@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+is imported in the main index.css
+-few extras in css for board module file
+-toolbox provider addition of extra state i.e. the text with corresponding features
+
+
+
+
+BOARDPROVIDER
+
+
+// CONCERNED WITH DRAWING but not concerned with what to draw
+
+import React,{useReducer} from 'react'
+import boardContext from './board-context'
+import { BOARD_ACTIONS, TOOL_ACTION_TYPES, TOOL_ITEMS } from '../constants'
+// import rough from "roughjs/bin/rough"
+import createElement, { getSvgPathFromStroke, isPointerNearElement } from '../utilities/ElementManager';
+import getStroke from 'perfect-freehand';
+
+// const gen = rough.generator();// to generate all the relevent shapes as specified
+
+function  boardReducer (state,action) {
+    switch (action.type){
+        case BOARD_ACTIONS.CHANGE_TOOL:
+            return {...state,activeToolItem: action.payload.tool,};
+        case BOARD_ACTIONS.CHANGE_ACTION_TYPE:
+            return {...state,toolActionType:action.payload.actionType};
+
+        case BOARD_ACTIONS.DRAW_DOWN:{
+            const {clientX,clientY,stroke,fill,size} = action.payload;
+
+            const newElement = createElement(state.elements.length,clientX,clientY,clientX,clientY,{type:state.activeToolItem,stroke,fill,size});  // DONT USE BOARD_ACTIONS.DRAW_DOWN
+            return {...state, 
+                toolActionType:(state.activeToolItem===TOOL_ITEMS.TEXT?TOOL_ACTION_TYPES.WRITING:TOOL_ACTION_TYPES.DRAWING), 
+                elements:[...state.elements,newElement]} // prev state + prev elements+ NEW ELEMENTS
+        }
+            
+        case BOARD_ACTIONS.DRAW_MOVE:{
+            const {clientX,clientY,stroke,fill,size} = action.payload;
+
+            const pos=state.elements.length-1;
+            const newElements=[...state.elements];
+            const {x1,y1,type} = newElements[pos];
+            // newElements[pos].x2=clientX; // NOT NEEDED ANY MORE DUE TO ELEMENT MANAGER (NNAM)
+            // newElements[pos].y2=clientY; // (NNAM)
+            // // newElements[pos].roughEle= gen.line(newElements[pos].x1,newElements[pos].y1,newElements[pos].x2,newElements[pos].y2);  // WRONG as the REAL TIM position is from the clientX and clientY // (NNAM)
+            // newElements[pos].roughEle= gen.line(x1,y1,clientX,clientY);// (NNAM) 
+
+            switch(type){
+                case (TOOL_ITEMS.LINE):
+                case (TOOL_ITEMS.RECTANGLE):
+                case (TOOL_ITEMS.CIRCLE):
+                case (TOOL_ITEMS.ARROW):
+                    const newElement = createElement(pos,x1,y1,clientX,clientY,{type:state.activeToolItem,stroke,fill,size});
+                    newElements[pos]=newElement;
+                    break; 
+                case (TOOL_ITEMS.BRUSH):
+                    // INSERTING EACH POINT 
+                    newElements[pos].points=[...newElements[pos].points,{x:clientX,y:clientY}];
+                    newElements[pos].path = new Path2D(getSvgPathFromStroke(getStroke(newElements[pos].points)));
+                    //HERE when moving, ELEMENT MANAGER IS NOT CALLED
+                    break;
+
+                default:
+                    break;
+            }
+
+            return {...state,elements:newElements};
+        }
+        case BOARD_ACTIONS.DRAW_UP:{
+            return {...state, toolActionType:TOOL_ACTION_TYPES.NONE}
+        }
+        case BOARD_ACTIONS.ERASE:{
+            const {clientX,clientY} = action.payload;
+            let newElements = [...state.elements];      // assignment thus "let" and not "const"
+
+            //if Point is close to a element, then dont take it as its supposed to be deleted
+            newElements = newElements.filter((element) => {
+                return !isPointerNearElement(element,clientX,clientY);
+            })
+            return {...state,elements:newElements}
+        }
+        case BOARD_ACTIONS.CHANGE_TEXT:{
+            const idx = state.elements.length-1;
+            const newElements = [...state.elements];
+            newElements[idx].text=action.payload.text;
+            return {...state,toolActionType:TOOL_ACTION_TYPES.NONE,elements:newElements};
+        }
+            
+        default:
+            return state;
+    }
+}
+
+const initialBoardState = {
+    activeToolItem: TOOL_ITEMS.BRUSH,
+    toolActionType: TOOL_ACTION_TYPES.NONE, // to know what action is going on now
+    elements:[]
+}
+
+function BoardProvider({children}) {
+
+
+    const [boardState,dispatchBoardAction] = useReducer(boardReducer,initialBoardState);
+    function changeToolHandler(tool){
+        dispatchBoardAction({type:BOARD_ACTIONS.CHANGE_TOOL, payload:{tool}})
+    }
+
+    function boardMouseDownHandler (event,toolboxState) {
+        const {clientX,clientY} = event;
+
+        if(boardState.toolActionType === TOOL_ACTION_TYPES.WRITING) return; // if done writing and now clicking again somewhere else, thus saving it in board
+        
+        else if(boardState.activeToolItem === TOOL_ITEMS.ERASER){
+            // informing to make the active action type as erasing
+            dispatchBoardAction({
+                type: BOARD_ACTIONS.CHANGE_ACTION_TYPE,
+                payload:{actionType:TOOL_ACTION_TYPES.ERASING}
+            })
+            
+        }
+        // else if(boardState.activeToolItem === TOOL_ITEMS.TEXT){
+        //     dispatchBoardAction({
+        //         type:BOARD_ACTIONS.CHANGE_ACTION_TYPE,
+        //         payload:{actionType:TOOL_ACTION_TYPES.WRITING}
+        //     })
+        // }
+        else if(boardState.activeToolItem !== TOOL_ITEMS.NONE){
+            dispatchBoardAction({type: BOARD_ACTIONS.DRAW_DOWN,
+                payload: { 
+                    clientX,
+                    clientY,
+                    stroke: toolboxState[boardState.activeToolItem]?.stroke,
+                    fill: toolboxState[boardState.activeToolItem]?.fill,
+                    size: toolboxState[boardState.activeToolItem]?.size,
+                }});
+        }
+        
+    }
+    function boardMouseMoveHandler (event,toolboxState) {
+        
+
+        const {clientX,clientY} = event;
+
+        if(boardState.toolActionType === TOOL_ACTION_TYPES.WRITING)  return; // obv dont want to do anything while moving and simultaneously writing
+
+        else if(boardState.toolActionType === TOOL_ACTION_TYPES.DRAWING){
+            dispatchBoardAction({type: BOARD_ACTIONS.DRAW_MOVE,
+                payload: { 
+                    clientX,
+                    clientY,
+                    stroke: toolboxState[boardState.activeToolItem]?.stroke,
+                    fill: toolboxState[boardState.activeToolItem]?.fill,
+                    size: toolboxState[boardState.activeToolItem]?.size,
+                }});
+        }
+        else if(boardState.toolActionType === TOOL_ACTION_TYPES.ERASING){    // to identify the pos of erasor when mosue is down and moving
+            dispatchBoardAction({type: BOARD_ACTIONS.ERASE,
+                payload: { 
+                    clientX,
+                    clientY,
+                }});
+        }
+        
+    }
+    function boardMouseUpHandler () {
+        if(boardState.toolActionType === TOOL_ACTION_TYPES.WRITING) return; // obv no need of any thing here
+
+        dispatchBoardAction({type: BOARD_ACTIONS.CHANGE_ACTION_TYPE, payload:{actionType:TOOL_ACTION_TYPES.NONE}}); // CHanging the Status of action to NONE
+    }
+    function textAreaBlurHandler (text,toolboxState) {
+        //setting the text once the writing is done in canvas in onBlur attribute
+        dispatchBoardAction({type:BOARD_ACTIONS.CHANGE_TEXT,payload:{
+            text,
+            stroke:toolboxState[boardState.activeToolItem]?.stroke,
+            size:toolboxState[boardState.activeToolItem]?.size
+        }});
+    }
+
+    const boardValues={
+        activeToolItem: boardState.activeToolItem,
+        elements:boardState.elements,
+        toolActionType:boardState.toolActionType,
+        changeToolHandler,
+        boardMouseDownHandler,
+        boardMouseMoveHandler,
+        boardMouseUpHandler,
+        textAreaBlurHandler,
+    }
+
+    
+  return (
+    <boardContext.Provider value = {boardValues}>
+        {children}
+    </boardContext.Provider>
+  )
+}
+
+export default BoardProvider
+
+
+
+
+
+
+
+INDEX OF BOARD
+
+
+import React,{useRef,useEffect,useContext,useLayoutEffect} from 'react' 
+import "./index.module.css"
+import rough from "roughjs"
+import boardContext from '../../store/board-context';
+import {  TOOL_ACTION_TYPES, TOOL_ITEMS } from '../../constants';
+// import Toolbox from '../Toolbox';
+import toolBoxContext from '../../store/toolbox-context';
+import classes from "./index.module.css"
+
+function Board() {
+    const canvasRef = useRef();
+    const textAreaRef = useRef();
+    const {elements,boardMouseDownHandler,boardMouseMoveHandler,boardMouseUpHandler,toolActionType,activeToolItem,textAreaBlurHandler} = useContext(boardContext) //Keep on importing each func from context
+
+    const {toolboxState} = useContext(toolBoxContext);
+
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      canvas.height = window.innerHeight; // entire vw
+      canvas.width = window.innerWidth;   // entire vh
+    }, []);
+
+    useLayoutEffect(() => {
+        const canvas = canvasRef.current;
+        const context = canvas.getContext("2d");
+        const roughCanvas = rough.canvas(canvas); // canvas <---> getelementbyid
+        // const generator = roughCanvas.generator;  // Generator -> easy draw in canvas
+
+        elements.forEach((element) => {
+
+          switch (element.type) {
+            case TOOL_ITEMS.LINE:
+            case TOOL_ITEMS.RECTANGLE:
+            case TOOL_ITEMS.CIRCLE:
+            case TOOL_ITEMS.ARROW:
+              roughCanvas.draw(element.roughEle)  // drawing all the existing elements
+              break;
+            case TOOL_ITEMS.BRUSH:  
+              //as each points is added, RE-RENDERING TAKES PLACE
+              context.fillStyle=element.stroke;
+              context.fill(element.path);
+              context.restore();
+              break; 
+            case TOOL_ITEMS.TEXT:{
+              // to insert it into the canvas
+              context.textBaseline = "top";
+              context.font = `${element.size}px Caveat`;
+              context.fillStyle = element.stroke;
+              context.fillText(element.text,element.x1,element.y1-45);// "-45" as the offSet position
+              context.restore();
+              break;
+            }         
+            default:
+              throw new Error("Kaisa type Select kar rahe ho tum?");
+          }
+          
+        })
+
+        // WHEN ELEMENTS CHANGE, We want THE BOARD RE-RENDERS
+
+        return () => {
+          context.clearRect(0,0,canvas.width,canvas.height); // TO clr RECTANGLE(aka White Board)
+        }
+
+
+        // let rect1 = generator.rectangle(10, 10, 100, 100);  // (x.start,y.start,length,height)
+        // let rect2 = generator.rectangle(10, 120, 100, 100, {fill: 'black',stroke:'red'});
+        // roughCanvas.draw(rect1);
+        // roughCanvas.draw(rect2);
+/*
+        By default it takes the available size in the parent Div
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#FF0000"; // or even like "blue"
+        context.fillRect(0,0,150,150);  // (x.start,y.start,length,height)
+*/
+        
+    }, [elements]);
+
+    useEffect(() => {
+      const textarea = textAreaRef.current;
+      if(toolActionType === TOOL_ACTION_TYPES.WRITING){
+
+        //manually setting due to lag(in default behaviour)
+        setTimeout(() => {
+          textarea.focus()
+        }, 0);
+      }
+    
+
+    }, [toolActionType])
+    
+
+    function handleMouseDown (event) {
+      // const clientX = event.clientX;       // X-Pos of MOUSE-CLICK
+      // const clientY = event.clientY-59;    // Y-Pos of MOUSE-CLICK
+      if(activeToolItem=== TOOL_ITEMS.TEXT)event.clientY-=10;          // OFF-SET Y-PIXEL due to NAVBAR at the top
+      else event.clientY-=60;
+      boardMouseDownHandler(event,toolboxState); 
+    }
+
+    function handleMouseMove(event){
+      event.clientY-=60; // OFF-SET Y-PIXEL due to NAVBAR at the top
+      boardMouseMoveHandler(event,toolboxState);   //needs the coordinates as user, is holding and moving the cursor
+    }
+
+    function handleMouseUp () {
+      boardMouseUpHandler(); // No need of event as just o set the toolActionType===NONE
+    }
+
+
+  return (
+    <div>
+        {toolActionType === TOOL_ACTION_TYPES.WRITING && 
+          <textarea type= "text" 
+          ref={textAreaRef}  
+          style = {{
+            top:elements[elements.length-1].y1,
+            left:elements[elements.length-1].x1,
+            fontSize:`${elements[elements.length-1]?.size}px`,
+            color:elements[elements.length-1]?.stroke
+          }}
+          className={classes.textElementBox}
+          onBlur={(event) => textAreaBlurHandler(event.target.value,toolboxState)}
+          />
+        }
+        <canvas ref={canvasRef} id ="canvas" className="canvas" onMouseDown ={handleMouseDown}
+        onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}></canvas>
+    </div>
+  )
+}
+
+export default Board;
+
+
+
+
+INDEX.MODULE.CSS for BOARD
+
+.canvas{
+    border: 2px solid black;
+}
+
+.textElementBox{
+    position: fixed;
+    border: none;
+    background: transparent;
+    resize: none;
+    outline: none;
+    padding: 0;
+    margin: 0;
+    width: auto;
+    height: auto;
+    overflow: hidden;
+    font-size: inherit;
+    font-family: inherit;
+    color: inherit;
+    line-height: inherit;
+    font-family: "Caveat";
+}
+
+
+
+TOOLBOX PROVIDER
+
+
+//each TOOL will have its own TOOLBOX
+
+import React,{useReducer} from 'react'
+import toolBoxContext from './toolbox-context'
+import { COLORS, TOOL_ITEMS, TOOLBOX_ACTIONS } from '../constants';
+
+function toolboxReducer(state,action){
+    switch (action.type){
+        case TOOLBOX_ACTIONS.CHANGE_STROKE:{
+            const {tool,stroke} = action.payload;
+            const newState = {...state};
+            newState[tool].stroke=stroke;
+            return newState;    // just updating the stroke of the tool in state
+        }
+        case TOOLBOX_ACTIONS.CHANGE_FILL:{
+            const {tool,fill} = action.payload;
+            const newState = {...state};
+            newState[tool].fill=fill;
+            return newState;    // just updating the stroke of the tool in state
+        }
+        case TOOLBOX_ACTIONS.CHANGE_SIZE:{
+            const {tool,size} = action.payload;
+            const newState = {...state};
+            newState[tool].size=size;
+            return newState;    // just updating the stroke of the tool in state
+        }
+        default :{
+            return state;
+        }
+    }
+}
+
+const initialToolboxState = {
+    [TOOL_ITEMS.BRUSH]:{
+        stroke:COLORS.BLACK,
+    },
+    [TOOL_ITEMS.LINE]:{
+        stroke: COLORS.BLACK,
+        size:1
+    },
+    [TOOL_ITEMS.RECTANGLE]:{
+        stroke:COLORS.BLACK,
+        fill:null,
+        size:1,
+    },
+    [TOOL_ITEMS.CIRCLE]:{
+        stroke:COLORS.BLACK,
+        fill:null,
+        size:1,
+    },
+    [TOOL_ITEMS.ARROW]:{
+        stroke:COLORS.BLACK,
+        size:1,
+    },
+    [TOOL_ITEMS.TEXT]:{
+        stroke:COLORS.BLACK,
+        size:32,
+    },
+    
+}
+
+
+function ToolboxProvider({children}) {
+    const [toolboxState,dispatchtoolboxAction]=useReducer(toolboxReducer,initialToolboxState);
+
+    function changeStrokeHandler (tool,stroke) {
+        dispatchtoolboxAction({
+            type:TOOLBOX_ACTIONS.CHANGE_STROKE,
+            payload:{tool, stroke}
+        })
+    }
+
+    function changeFillHandler (tool,fill) {
+        dispatchtoolboxAction({
+            type:TOOLBOX_ACTIONS.CHANGE_FILL,
+            payload:{tool, fill}
+        })
+    }
+    function changeSizeHandler (tool,size) {
+        dispatchtoolboxAction({
+            type:TOOLBOX_ACTIONS.CHANGE_SIZE, //By mistakenly written "type:TOOLBOX_ACTIONS.CHANGE_FILL"
+            payload:{tool, size}
+        })
+    }
+
+
+    const toolboxValue= {
+        toolboxState,
+        changeStrokeHandler,
+        changeFillHandler,
+        changeSizeHandler,
+    }
+  return (
+    <toolBoxContext.Provider value= {toolboxValue}>
+        {children}
+    </toolBoxContext.Provider>
+  )
+}
+
+export default ToolboxProvider
+
+
+
+
+
+TOOLBOX INDEX.JS
+
+
+import React,{useContext} from 'react'
+import classes from "./index.module.css"
+import cx from "classnames"
+import { COLORS, FILL_TOOL_TYPES, SIZE_TOOL_TYPES, STROKE_TOOL_TYPES, TOOL_ITEMS } from '../../constants'
+import toolBoxContext from '../../store/toolbox-context'
+import boardContext from '../../store/board-context'
+
+function Toolbox() {
+
+    const {activeToolItem} = useContext(boardContext)
+    const {toolboxState,changeStrokeHandler,changeFillHandler,changeSizeHandler} = useContext(toolBoxContext)
+
+
+    const strokeColor= toolboxState[activeToolItem]?.stroke; // ? -> if it does not exist depending upon the active tool
+    const fillColor= toolboxState[activeToolItem]?.fill;
+    const size=toolboxState[activeToolItem]?.size; 
+  return (
+    <div className={classes.container}>
+        {STROKE_TOOL_TYPES.includes(activeToolItem) && <div className={classes.selectOptionContainer}>
+            <div className={classes.toolBoxLabel}>{activeToolItem===TOOL_ITEMS.TEXT?"Text Color":"Stroke Color"}</div>
+                {Object.keys(COLORS).map((idx)=> {
+                    return <div key={idx} className={cx(classes.colorBox,{[classes.activeColorBox]:strokeColor===COLORS[idx]})} 
+                    style={{backgroundColor:COLORS[idx]}}
+                    onClick = {() => changeStrokeHandler(activeToolItem,COLORS[idx])}
+                    ></div>
+                })
+                }
+            
+        </div>}
+        {FILL_TOOL_TYPES.includes(activeToolItem) && <div className={classes.selectOptionContainer}>
+            <div className={classes.toolBoxLabel}>Fill Color</div>
+                {Object.keys(COLORS).map((idx)=> {
+                    return <div key={idx} className={cx(classes.colorBox,{[classes.activeColorBox]:fillColor===COLORS[idx]})} 
+                    style={{backgroundColor:COLORS[idx]}}
+                    onClick = {() => changeFillHandler(activeToolItem,COLORS[idx])}
+                    ></div>
+                })
+                }
+            
+        </div>}
+        {SIZE_TOOL_TYPES.includes(activeToolItem) && <div className={classes.selectOptionContainer}>
+            <div className={classes.toolBoxLabel}>{activeToolItem===TOOL_ITEMS.TEXT?"Font Size":"Brush Size"}</div>
+                <input type="range" 
+                min = {activeToolItem === TOOL_ITEMS.TEXT?12:1}
+                max = {activeToolItem === TOOL_ITEMS.TEXT?64:10}
+                step={1} value={size} onChange={(event)=>changeSizeHandler(activeToolItem,event.target.value)}
+                >
+                </input>
+            
+        </div>}
+    </div>
+  )
+}
+    //Iterating through all the COLOR Object and printing it as an option in the toolBOX
+export default Toolbox
+
+
+
+
+
+
+
