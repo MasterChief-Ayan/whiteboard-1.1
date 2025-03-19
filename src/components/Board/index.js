@@ -106,13 +106,13 @@ function Board() {
     function handleMouseDown (event) {
       // const clientX = event.clientX;       // X-Pos of MOUSE-CLICK
       // const clientY = event.clientY-59;    // Y-Pos of MOUSE-CLICK
-      if(activeToolItem=== TOOL_ITEMS.TEXT)event.clientY-=18;          // OFF-SET Y-PIXEL due to NAVBAR at the top
-      else event.clientY-=50;
+      if(activeToolItem=== TOOL_ITEMS.TEXT)event.clientY-=20;          // OFF-SET Y-PIXEL due to NAVBAR at the top
+      else event.clientY-=64;
       boardMouseDownHandler(event,toolboxState); 
     }
 
     function handleMouseMove(event){
-      event.clientY-=50; // OFF-SET Y-PIXEL due to NAVBAR at the top
+      event.clientY-=64; // OFF-SET Y-PIXEL due to NAVBAR at the top
       boardMouseMoveHandler(event,toolboxState);   //needs the coordinates as user, is holding and moving the cursor
     }
 
